@@ -1,0 +1,341 @@
+ // Copyright 2014. All rights reserved.
+ // Author: Nelson LIAO <liaoxin1014@gmail.com>
+
+class ClosureBase {
+ public:
+  virtual ~ClosureBase() {}
+  virtual bool IsRepeatable() const = 0;
+};
+
+template<typename Signature>
+class Closure : public ClosureBase {};
+
+$var n = 6
+
+$range i 0..n
+$for i [[
+
+$range j 1..i
+
+template<class R $for j [[, typename A$j]]>
+class Closure<R ($for j [[$if j > 1 [[, ]]A$j]])> : public ClosureBase {
+ public:
+  virtual R Run($for j [[$if j > 1 [[, ]]A$j a$j]]) = 0;
+};
+
+]]
+
+template<bool Delete, class T>
+class ConditionalAutoDeleter {
+ public:
+  ConditionalAutoDeleter(T *t) : t_(t) {}
+  ~ConditionalAutoDeleter() {
+    if (Delete) {
+      delete t_;
+    }
+  }
+ private:
+  ConditionalAutoDeleter(const ConditionalAutoDeleter&);
+  ConditionalAutoDeleter& operator= (const ConditionalAutoDeleter&);
+  T *t_;
+};
+
+// Method Closures
+//
+
+$range i 0..n
+$for i [[
+
+$range j 0..i  $$ iter for bind-arguments
+$for j [[
+
+$range a 1..i-j  $$ arguments
+$range b 1..j    $$ bind-arguments
+
+// Specified for $i arguments (with $j bind-arguments)
+template <bool Repeatable, class R, class Klass, class MethodKlass
+$for b [[, typename BindArg$b]]
+$for a [[, typename Arg$a]]
+>
+class MethodClosure_$i[[]]_$j
+  : public Closure<R ($for a [[$if a > 1 [[, ]]Arg$a]])> {
+  typedef R (MethodKlass::*MethodType)(
+$if j == 0 [[
+$for a [[$if a > 1 [[, ]]Arg$a]]
+]] $elif j == i [[
+$for b [[$if b > 1 [[, ]]BindArg$b]]
+]] $else [[
+$for b [[$if b > 1 [[, ]]BindArg$b]] $for a [[, Arg$a]]
+]]
+);
+ public:
+  MethodClosure_$i[[]]_$j (Klass *object, MethodType method
+$for b [[, BindArg$b b$b]])
+    : object_(object), method_(method)
+    $for b [[, b$b[[]]_(b$b)]] {}
+  virtual bool IsRepeatable() const { return Repeatable; }
+  virtual R Run($for a [[$if a > 1 [[, ]]Arg$a a$a]]) {
+    ConditionalAutoDeleter<!Repeatable, MethodClosure_$i[[]]_$j> deleter(this);
+    return (object_->*method_)(
+$if j == 0 [[
+$for a [[$if a > 1 [[, ]]a$a]]
+]] $elif j == i [[
+$for b [[$if b > 1 [[, ]]b$b[[]]_]]
+]] $else [[
+$for b [[$if b > 1 [[, ]]b$b[[]]_]] $for a [[, a$a]]
+]]);
+  }
+ private:
+  Klass *object_;
+  MethodType method_;
+$for b [[
+
+  BindArg$b b$b[[]]_;
+]]
+
+};
+
+template<class R, class Klass, class MethodKlass
+$for b [[, typename BindArg$b]]
+$for a [[, typename Arg$a]]
+>
+Closure<R ($for a [[$if a > 1 [[, ]]Arg$a]])>* NewClosure(
+    Klass *object, R (MethodKlass::*method)(
+$if j == 0 [[
+$for a [[$if a > 1 [[, ]]Arg$a]]
+]] $elif j == i [[
+$for b [[$if b > 1 [[, ]]BindArg$b]]
+]] $else [[
+$for b [[$if b > 1 [[, ]]BindArg$b]] $for a [[, Arg$a]]
+]])
+$for b [[, BindArg$b b$b]]) {
+  return new MethodClosure_$i[[]]_$j<false, R, Klass, MethodKlass
+$for b [[, BindArg$b]]
+$for a [[, Arg$a]]>(
+      object, method
+$for b [[, b$b]]);
+}
+
+template<class R, class Klass, class MethodKlass
+$for b [[, typename BindArg$b]]
+$for a [[, typename Arg$a]]
+>
+Closure<R ($for a [[$if a > 1 [[, ]]Arg$a]])>* NewPermanentClosure(
+    Klass *object, R (MethodKlass::*method)(
+$if j == 0 [[
+$for a [[$if a > 1 [[, ]]Arg$a]]
+]] $elif j == i [[
+$for b [[$if b > 1 [[, ]]BindArg$b]]
+]] $else [[
+$for b [[$if b > 1 [[, ]]BindArg$b]] $for a [[, Arg$a]]
+]])
+$for b [[, BindArg$b b$b]]) {
+  return new MethodClosure_$i[[]]_$j<true, R, Klass, MethodKlass
+$for b [[, BindArg$b]]
+$for a [[, Arg$a]]>(
+      object, method
+$for b [[, b$b]]);
+}
+
+]]
+]]
+
+// Const Method Closures
+//
+
+$range i 0..n
+$for i [[
+
+$range j 0..i  $$ iter for bind-arguments
+$for j [[
+
+$range a 1..i-j  $$ arguments
+$range b 1..j    $$ bind-arguments
+
+// Specified for $i arguments (with $j bind-arguments)
+template <bool Repeatable, class R, class Klass, class MethodKlass
+$for b [[, typename BindArg$b]]
+$for a [[, typename Arg$a]]
+>
+class ConstMethodClosure_$i[[]]_$j
+  : public Closure<R ($for a [[$if a > 1 [[, ]]Arg$a]])> {
+  typedef R (MethodKlass::*MethodType)(
+$if j == 0 [[
+$for a [[$if a > 1 [[, ]]Arg$a]]
+]] $elif j == i [[
+$for b [[$if b > 1 [[, ]]BindArg$b]]
+]] $else [[
+$for b [[$if b > 1 [[, ]]BindArg$b]] $for a [[, Arg$a]]
+]]
+) const;
+ public:
+  ConstMethodClosure_$i[[]]_$j (Klass *object, MethodType method
+$for b [[, BindArg$b b$b]])
+    : object_(object), method_(method)
+    $for b [[, b$b[[]]_(b$b)]] {}
+  virtual bool IsRepeatable() const { return Repeatable; }
+  virtual R Run($for a [[$if a > 1 [[, ]]Arg$a a$a]]) {
+    ConditionalAutoDeleter<!Repeatable, ConstMethodClosure_$i[[]]_$j> deleter(this);
+    return (object_->*method_)(
+$if j == 0 [[
+$for a [[$if a > 1 [[, ]]a$a]]
+]] $elif j == i [[
+$for b [[$if b > 1 [[, ]]b$b[[]]_]]
+]] $else [[
+$for b [[$if b > 1 [[, ]]b$b[[]]_]] $for a [[, a$a]]
+]]);
+  }
+ private:
+  Klass *object_;
+  MethodType method_;
+$for b [[
+
+  BindArg$b b$b[[]]_;
+]]
+
+};
+
+template<class R, class Klass, class MethodKlass
+$for b [[, typename BindArg$b]]
+$for a [[, typename Arg$a]]
+>
+Closure<R ($for a [[$if a > 1 [[, ]]Arg$a]])>* NewClosure(
+    Klass *object, R (MethodKlass::*method)(
+$if j == 0 [[
+$for a [[$if a > 1 [[, ]]Arg$a]]
+]] $elif j == i [[
+$for b [[$if b > 1 [[, ]]BindArg$b]]
+]] $else [[
+$for b [[$if b > 1 [[, ]]BindArg$b]] $for a [[, Arg$a]]
+]]) const
+$for b [[, BindArg$b b$b]]) {
+  return new ConstMethodClosure_$i[[]]_$j<false, R, Klass, MethodKlass
+$for b [[, BindArg$b]]
+$for a [[, Arg$a]]>(
+      object, method
+$for b [[, b$b]]);
+}
+
+template<class R, class Klass, class MethodKlass
+$for b [[, typename BindArg$b]]
+$for a [[, typename Arg$a]]
+>
+Closure<R ($for a [[$if a > 1 [[, ]]Arg$a]])>* NewPermanentClosure(
+    Klass *object, R (MethodKlass::*method)(
+$if j == 0 [[
+$for a [[$if a > 1 [[, ]]Arg$a]]
+]] $elif j == i [[
+$for b [[$if b > 1 [[, ]]BindArg$b]]
+]] $else [[
+$for b [[$if b > 1 [[, ]]BindArg$b]] $for a [[, Arg$a]]
+]]) const
+$for b [[, BindArg$b b$b]]) {
+  return new ConstMethodClosure_$i[[]]_$j<true, R, Klass, MethodKlass
+$for b [[, BindArg$b]]
+$for a [[, Arg$a]]>(
+      object, method
+$for b [[, b$b]]);
+}
+
+]]
+]]
+
+// Function Closures
+//
+
+$range i 0..n
+$for i [[
+
+$range j 0..i  $$ iter for bind-arguments
+$for j [[
+
+$range a 1..i-j  $$ arguments
+$range b 1..j    $$ bind-arguments
+
+// Specified for $i arguments (with $j bind-arguments)
+template<bool Repeatable, class R
+$for b [[, typename BindArg$b]]
+$for a [[, typename Arg$a]]
+>
+class FunctionClosure_$i[[]]_$j
+  : public Closure<R ($for a [[$if a > 1 [[, ]]Arg$a]])> {
+  typedef R (*FunctionType)(
+$if j == 0 [[
+$for a [[$if a > 1 [[, ]]Arg$a]]
+]] $elif j == i [[
+$for b [[$if b > 1 [[, ]]BindArg$b]]
+]] $else [[
+$for b [[$if b > 1 [[, ]]BindArg$b]] $for a [[, Arg$a]]
+]]
+);
+ public:
+  FunctionClosure_$i[[]]_$j(FunctionType function
+$for b [[, BindArg$b b$b]])
+    : function_(function)
+    $for b [[, b$b[[]]_(b$b)]] {}
+  virtual bool IsRepeatable() const { return Repeatable; }
+  virtual R Run($for a [[$if a > 1 [[, ]]Arg$a a$a]]) {
+    ConditionalAutoDeleter<!Repeatable, FunctionClosure_$i[[]]_$j> deleter(this);
+    return (*function_)(
+$if j == 0 [[
+$for a [[$if a > 1 [[, ]]a$a]]
+]] $elif j == i [[
+$for b [[$if b > 1 [[, ]]b$b[[]]_]]
+]] $else [[
+$for b [[$if b > 1 [[, ]]b$b[[]]_]] $for a [[, a$a]]
+]]
+);
+  }
+ private:
+  FunctionType function_;
+$for b [[
+
+  BindArg$b b$b[[]]_;
+]]
+
+};
+
+template<class R
+$for b [[, typename BindArg$b]]
+$for a [[, typename Arg$a]]
+>
+Closure<R ($for a [[$if a > 1 [[, ]]Arg$a]])>* NewClosure(
+    R (*function)(
+$if j == 0 [[
+$for a [[$if a > 1 [[, ]]Arg$a]]
+]] $elif j == i [[
+$for b [[$if b > 1 [[, ]]BindArg$b]]
+]] $else [[
+$for b [[$if b > 1 [[, ]]BindArg$b]] $for a [[, Arg$a]]
+]])
+$for b [[, BindArg$b b$b]]) {
+  return new FunctionClosure_$i[[]]_$j<false, R
+$for b [[, BindArg$b]]
+$for a [[, Arg$a]]>(
+      function
+$for b [[, b$b]]);
+}
+
+template<class R
+$for b [[, typename BindArg$b]]
+$for a [[, typename Arg$a]]
+>
+Closure<R ($for a [[$if a > 1 [[, ]]Arg$a]])>* NewPermanentClosure(
+    R (*function)(
+$if j == 0 [[
+$for a [[$if a > 1 [[, ]]Arg$a]]
+]] $elif j == i [[
+$for b [[$if b > 1 [[, ]]BindArg$b]]
+]] $else [[
+$for b [[$if b > 1 [[, ]]BindArg$b]] $for a [[, Arg$a]]
+]])
+$for b [[, BindArg$b b$b]]) {
+  return new FunctionClosure_$i[[]]_$j<true, R
+$for b [[, BindArg$b]]
+$for a [[, Arg$a]]>(
+      function
+$for b [[, b$b]]);
+}
+
+]]
+]]
