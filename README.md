@@ -10,4 +10,4 @@ I think someone would like callbacks in this way.
 
 See *closure_test.cc*.
 
-Notice that there are two ways to create closure, NewClosure and NewPermanentClosure. Closures created by the former one will be deleted after the first call for Run(), and ones created by the latter one won't be deleted after every call for Run() which you should delete them by yourself.
+Notice that there are two ways to create closure, NewClosure() and NewPermanentClosure(). Closures created by the former one will be deleted after the first call for Run(), and ones created by the latter one won't be deleted after every call for Run() which you should delete them by yourself.
